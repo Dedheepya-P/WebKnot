@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Student Portal — Campus Events</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui,Segoe UI,Roboto,Arial; margin:1rem; }
+    .event-card { border:1px solid #ccc; padding:1rem; margin:0.5rem 0; border-radius:6px; cursor:pointer; }
+    .event-card:hover { background-color:#f0f0f0; }
+    label span { color:red }
+    #regMsg { margin-top:0.5rem; font-weight:bold; }
+    input, button { display:block; margin:0.25rem 0 0.75rem; padding:0.5rem; width:100%; max-width:400px; }
+  </style>
+</head>
+<body>
+  <h1>Student Portal</h1>
+  <p><a href="/">← Back</a></p>
+
+  <h2>Available Events</h2>
+  <div id="eventsContainer">Loading events...</div>
+
+  <div id="registrationForm" style="display:none; margin-top:1rem;">
+    <h2>Register for: <span id="eventTitle"></span></h2>
+    <input id="student_name" placeholder="Full Name" required/>
+    <input id="student_email" type="email" placeholder="Email" required/>
+    <button id="registerBtn">Register</button>
+    <button id="cancelBtn">Cancel</button>
+    <div id="regMsg"></div>
+  </div>
+
+<script>
+const eventsContainer = document.getElementById("eventsContainer");
+const registrationForm = document.getElementById("registrationForm");
+const eventTitle = document.getElementById("eventTitle");
+const studentNameInput = document.getElementById("student_name");
+const studentEmailInput = document.getElementById("student_email");
+const regMsg = document.getElementById("regMsg");
+let selectedEventId = null;
+
+// Fetch events from backend
+async function loadEvents() {
+  const res = await fetch("/api/events/available");
+  const events = await res.json();
+  if(events.length === 0) {
+    eventsContainer.innerHTML = "<p>No events available at the moment.</p>";
+    return;
+  }
+  eventsContainer.innerHTML = "";
+  events.forEach(ev => {
+    const div = document.createElement("div");
+    div.className = "event-card";
+    div.innerHTML = `
+      <h3>${ev.title}</h3>
+      <p>${ev.description || ""}</p>
+      <p>Type: ${ev.event_type}</p>
+      <p>Start: ${ev.start_ts}</p>
+      <p>End: ${ev.end_ts}</p>
+      <p>Location: ${ev.location}</p>
+      <p>Capacity: ${ev.capacity}</p>
+      <p>Registered: ${ev.registrations || 0}</p>
+    `;
+    div.onclick = () => selectEvent(ev);
+    eventsContainer.appendChild(div);
+  });
+}
+
+function selectEvent(ev) {
+  selectedEventId = ev.event_id;
+  eventTitle.textContent = ev.title;
+  registrationForm.style.display = "block";
+  regMsg.textContent = "";
+  studentNameInput.value = "";
+  studentEmailInput.value = "";
+  window.scrollTo(0, registrationForm.offsetTop);
+}
+
+document.getElementById("cancelBtn").onclick = () => {
+  registrationForm.style.display = "none";
+  selectedEventId = null;
+}
+
+// Register student
+document.getElementById("registerBtn").onclick = async () => {
+  if(!studentNameInput.value || !studentEmailInput.value) {
+    regMsg.textContent = "Please fill all fields!";
+    regMsg.style.color = "red";
+    return;
+  }
+
+  const data = {
+    student_uuid: crypto.randomUUID(),
+    name: studentNameInput.value,
+    email: studentEmailInput.value,
+    college_id: "college-1"
+  };
+
+  try {
+    const res = await fetch(`/api/events/${selectedEventId}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+
+    if(res.ok){
+      const result = await res.json();
+      // Show inline success message
+      regMsg.textContent = `✅ Registration successful! Your Registration ID: ${result.registration_id}`;
+      regMsg.style.color = "green";
+      registrationForm.style.display = "none";
+      loadEvents(); // Refresh event list
+    } else {
+      const err = await res.json();
+      regMsg.textContent = `❌ Registration failed: ${err.error || 'Unknown error'}`;
+      regMsg.style.color = "red";
+    }
+  } catch(e) {
+    regMsg.textContent = "❌ Registration failed: Network error";
+    regMsg.style.color = "red";
+  }
+}
+
+// Initial load
+loadEvents();
+</script>
+
+</body>
+</html>

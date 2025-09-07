@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Admin Portal — Campus Events</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:1rem}
+    input,select,textarea{display:block;margin:0.25rem 0 0.75rem;padding:0.5rem;width:100%;max-width:480px}
+    button{padding:0.5rem 1rem;cursor:pointer}
+    .event{border:1px solid #eee;padding:0.75rem;margin:0.5rem 0;border-radius:6px}
+    .flex{display:flex;gap:1rem;align-items:center}
+    #createMsg{margin-top:0.5rem;font-weight:bold}
+    label span{color:red}
+  </style>
+</head>
+<body>
+  <h1>Admin Portal</h1>
+  <p><a href="/">← Back</a></p>
+
+  <h2>Create Event</h2>
+  <form id="eventForm">
+    <label>College ID <span>*</span>
+      <input id="college_id" required placeholder="college_id (e.g. college-1)" value="college-1" />
+    </label>
+    <label>Title <span>*</span>
+      <input id="title" required placeholder="Title (e.g. Intro to ML)" />
+    </label>
+    <label>Event Type <span>*</span>
+      <select id="event_type" required>
+        <option value="">--Select--</option>
+        <option>Workshop</option>
+        <option>Hackathon</option>
+        <option>Seminar</option>
+        <option>Fest</option>
+      </select>
+    </label>
+    <label>Start Date & Time <span>*</span>
+      <input id="start_ts" type="datetime-local" required />
+    </label>
+    <label>End Date & Time <span>*</span>
+      <input id="end_ts" type="datetime-local" required />
+    </label>
+    <label>Location <span>*</span>
+      <input id="location" required placeholder="Location" />
+    </label>
+    <label>Capacity <span>*</span>
+      <input id="capacity" type="number" min="1" required placeholder="Capacity" value="100"/>
+    </label>
+    <button type="submit">Create Event</button>
+    <div id="createMsg"></div>
+  </form>
+
+  <h2>Events (Popularity)</h2>
+  <div>
+    <label>Filter by type:
+      <select id="filterType">
+        <option value="">All</option>
+        <option>Workshop</option>
+        <option>Hackathon</option>
+        <option>Seminar</option>
+        <option>Fest</option>
+      </select>
+    </label>
+    <button id="refreshEvents">Refresh</button>
+    <div id="eventsList"></div>
+  </div>
+
+  <script>
+    document.getElementById("eventForm").addEventListener("submit", async function(e) {
+      e.preventDefault(); // stop default submit
+
+      const start = document.getElementById("start_ts").value;
+      const end = document.getElementById("end_ts").value;
+      if (new Date(start) >= new Date(end)) {
+        document.getElementById("createMsg").textContent = "❌ End time must be after start time";
+        document.getElementById("createMsg").style.color = "red";
+        return;
+      }
+
+      const data = {
+        college_id: document.getElementById("college_id").value.trim(),
+        title: document.getElementById("title").value.trim(),
+        event_type: document.getElementById("event_type").value,
+        start_ts: new Date(start).toISOString(),
+        end_ts: new Date(end).toISOString(),
+        location: document.getElementById("location").value.trim(),
+        capacity: parseInt(document.getElementById("capacity").value),
+        description: ""
+      };
+
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        document.getElementById("createMsg").textContent =
+          "✅ Event created (ID: " + result.event_id + ")";
+        document.getElementById("createMsg").style.color = "green";
+        loadEvents();
+        this.reset();
+      } else {
+        document.getElementById("createMsg").textContent = "❌ Failed to create event";
+        document.getElementById("createMsg").style.color = "red";
+      }
+    });
+
+    async function loadEvents() {
+      const res = await fetch("/api/reports/event_popularity");
+      const events = await res.json();
+
+      const listDiv = document.getElementById("eventsList");
+      listDiv.innerHTML = "";
+
+      events.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "event";
+        div.innerHTML = `<strong>${ev.title}</strong> (${ev.event_type})<br>
+                         📍 ${ev.location} | 🧑‍🎓 Registrations: ${ev.registrations}`;
+        listDiv.appendChild(div);
+      });
+    }
+
+    document.getElementById("refreshEvents").addEventListener("click", loadEvents);
+    loadEvents();
+  </script>
+</body>
+</html>
